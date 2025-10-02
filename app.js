@@ -783,11 +783,19 @@ function renderWithPagination(list, containerEl, keyword = "") {
     // init Fuse if available
     if (typeof Fuse !== 'undefined' && Array.isArray(DATA) && DATA.length > 0) {
       try {
-        FUSE = new Fuse(DATA, {
-          keys: ['question', 'answer', 'details', 'key_point', 'law_section', 'case_reference', 'tags', 'keywords'],
-          includeScore: true,
-          threshold: 0.4
-        });
+       FUSE = new Fuse(DATA, {
+  keys: [
+    { name: 'question', weight: 0.5 },
+    { name: 'answer', weight: 0.3 },
+    { name: 'tags', weight: 0.1 },
+    { name: 'keywords', weight: 0.1 }
+  ],
+  includeScore: false,       // স্কোর দরকার নেই, দ্রুত হবে
+  threshold: 0.3,            // টাইট ম্যাচিং (ফলাফল দ্রুত ও সঠিক)
+  minMatchCharLength: 2,     // ২ অক্ষর থেকে সার্চ শুরু হবে
+  ignoreLocation: true,      // লম্বা টেক্সটে ফাস্ট সার্চ
+  useExtendedSearch: false   // হালকা কনফিগ
+});
       } catch (e) {
         console.warn("Could not initialize Fuse:", e);
         FUSE = null;
@@ -898,4 +906,5 @@ function renderWithPagination(list, containerEl, keyword = "") {
     console.warn("Visitor counter error:", e);
     counterEl.textContent = "N/A";
   }
+
 })();
