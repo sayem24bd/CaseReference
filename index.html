@@ -2,18 +2,33 @@
 <html lang="bn">
 <head>
   <meta charset="UTF-8">
-  <title>কেস রেফারেন্স</title>
+  <!-- Content Security Policy (CSP) যোগ করা হয়েছে -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://cdn.jsdelivr.net https://script.google.com;
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+    connect-src 'self' https://script.google.com;
+    font-src 'self';
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+  ">
+  <title>দলিল সহায়ক</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0d6efd">
   <link rel="stylesheet" href="style.css">
   <!-- Fuse.js for fuzzy search (optional) -->
-  <script src="https://cdn.jsdelivr.net/npm/fuse.js/dist/fuse.min.js" defer></script>
+  <!-- Subresource Integrity (SRI) যোগ করা হয়েছে -->
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.min.js" defer
+    xintegrity="sha512-AIodPenfaV3n/aSAoRBPFz+3ksQjUFsSyddNzdLmxBLS/9fPQHAJj97jH/o+tHhdNLfQJ+1P+fYXbYF5BktGvQ=="
+    crossorigin="anonymous"></script>
 </head>
 <body>
 
 <header role="banner" aria-label="অ্যাপ হেডার">
-  <h1>কেস রেফারেন্স</h1>
+  <h1>দলিল সহায়ক</h1>
   <div class="spacer"></div>
 
   <div class="button-group" role="group" aria-label="হেডার বাটন">
@@ -87,12 +102,12 @@
 </main>
 
 <footer>
-  © কেস রেফারেন্স — অফলাইন সাপোর্টেড PWA
+  © দলিল সহায়ক — অফলাইন সাপোর্টেড PWA
    <br>
   👥 ভিজিটর সংখ্যা: <span id="visitorCounter">লোড হচ্ছে...</span>
 </footer>
 
 <script src="app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
 </body>
-
 </html>
