@@ -450,11 +450,11 @@
     "id": 27,
     "serial_no": "২৭",
     "question": " যৌথ পরিবারের বসতবাড়ি বাইরের কারো কাছে বিক্রি হয় প্রতিকার কি ?",
-    "answer": " যদি যৌথ পরিবারের বসতবাড়ি বাইরের কারো কাছে বিক্রি হয়, তবে প্রতিকার হলো— Section 4 অনুযায়ী পরিবারের সদস্যরা আদালতের মাধ্যমে সেই অংশ কিনে নেওয়ার অধিকার (right of buy up) প্রয়োগ করতে পারবেন।",
+    "answer": "প্রতিকার হলো— Section 4 অনুযায়ী পরিবারের সদস্যরা আদালতের মাধ্যমে সেই অংশ কিনে নেওয়ার অধিকার (right of buy up) প্রয়োগ করতে পারবেন।",
     "details": "প্রতিকার পাওয়ার জন্য শর্ত: ১-সম্পত্তি অবশ্যই যৌথ পরিবারের বসতবাড়ি হতে হবে। ২-বাইরের ক্রেতা অবশ্যই partition suit করতে হবে (অর্থাৎ বিভাজনের মামলা করতে হবে)। ৩-তখন পরিবারের অন্য সদস্যরা Section 4-এর অধীনে আদালতের কাছে আবেদন করে সেই অংশ buy up/right of pre-emption অর্থাৎ কিনে নেওয়ার অধিকার প্রয়োগ করতে পারবেন।",
-    "key_point": "The basic pre-requisites for an application under section 4 for exercising the right of buy up is that the property which is the subject matter of the application must be a dwelling house of an undivided family and the transferee must sue for partition.",
+    "key_point": "",
     "law_section": "Partition Act, 1893, Sections 4",
-    "case_reference": "Shamsul Alam vs Dr Ashim Sarker (72 DLR (AD) 66)",
+    "case_reference": "The basic pre-requisites for an application under section 4 for exercising the right of buy up is that the property which is the subject matter of the application must be a dwelling house of an undivided family and the transferee must sue for partition.Shamsul Alam vs Dr Ashim Sarker (72 DLR (AD) 66)",
     "tags": ["বাটোয়ারা"],
     "keywords": ["Dwelling house(যৌথ পরিবারের বসতবাড়ি), Buy-up Right(অংশ ক্রয়ের অধিকার)"  ],
     "year": 2025,
@@ -467,5 +467,6 @@
 
 
 ]
+
 
 
