@@ -334,7 +334,10 @@ const renderWithHTML = (htmlText = "") => {
       answerLabel.className = "label label-answer";
       answerLabel.textContent = "উত্তর: ";
       answerDiv.appendChild(answerLabel);
-      answerDiv.appendChild(renderWithHTML(item.answer));
+      const answerContent = renderWithHTML(item.answer);
+	  while(answerContent.firstChild) {
+          answerDiv.appendChild(answerContent.firstChild);
+      }
       details.appendChild(answerDiv);
 
       if (item.details) {
@@ -343,7 +346,10 @@ const renderWithHTML = (htmlText = "") => {
         detailsLabel.className = "label label-details";
         detailsLabel.textContent = "বিস্তারিত: ";
         detailsDiv.appendChild(detailsLabel);
-        detailsDiv.appendChild(renderWithHTML(item.details));
+        const detailsContent = renderWithHTML(item.details);
+        while(detailsContent.firstChild) {
+            detailsDiv.appendChild(detailsContent.firstChild);
+        }
         details.appendChild(detailsDiv);
       }
 
@@ -352,7 +358,10 @@ const renderWithHTML = (htmlText = "") => {
       keyLabel.className = "label label-keywords";
       keyLabel.textContent = "শিক্ষা: ";
       keyDiv.appendChild(keyLabel);
-      keyDiv.appendChild(renderWithHTML(item.key_point || "-"));
+      const keyContent = renderWithHTML(item.key_point || "-");
+	  while(keyContent.firstChild) {
+          keyDiv.appendChild(keyContent.firstChild);
+      }
       details.appendChild(keyDiv);
 
       const sectionDiv = document.createElement("div");
@@ -360,7 +369,10 @@ const renderWithHTML = (htmlText = "") => {
       sectionLabel.className = "label label-section";
       sectionLabel.textContent = "ধারা: ";
       sectionDiv.appendChild(sectionLabel);
-      sectionDiv.appendChild(renderWithHTML(item.law_section || "-"));
+      const sectionContent = renderWithHTML(item.law_section || "-");
+	  while(sectionContent.firstChild) {
+          sectionDiv.appendChild(sectionContent.firstChild);
+      }
       details.appendChild(sectionDiv);
 
       const caseDiv = document.createElement("div");
@@ -368,8 +380,11 @@ const renderWithHTML = (htmlText = "") => {
       caseLabel.className = "label label-case";
       caseLabel.textContent = "মামলা: ";
       caseDiv.appendChild(caseLabel);
-      caseDiv.appendChild(renderWithHTML(item.case_reference || "কোনো মামলা রেফারেন্স নেই"));
-      details.appendChild(caseDiv);
+      const caseContent = renderWithHTML(item.case_reference || "কোনো মামলা রেফারেন্স নেই");
+      while(caseContent.firstChild) {
+          caseDiv.appendChild(caseContent.firstChild);
+      }
+	  details.appendChild(caseDiv);
 
       // Meta area (DOM nodes to avoid HTML injection)
       const meta = document.createElement("div");
