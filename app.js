@@ -263,6 +263,35 @@ document.addEventListener("DOMContentLoaded", () => {
     return btn;
   };
 
+// === Safe HTML Renderer ===
+const renderWithHTML = (htmlText = "") => {
+  const div = document.createElement("div");
+  const allowedTags = ["b", "i", "u", "br", "mark"]; // শুধু এই ট্যাগগুলো অনুমতি দেওয়া হবে
+
+  const temp = document.createElement("div");
+  temp.innerHTML = String(htmlText);
+
+  const walker = document.createTreeWalker(temp, NodeFilter.SHOW_ELEMENT, null, false);
+  let node;
+  while ((node = walker.nextNode())) {
+    if (!allowedTags.includes(node.nodeName.toLowerCase())) {
+      // অনুমোদিত নয় এমন ট্যাগ হলে শুধু ভেতরের লেখা রেখে দেবে
+      const span = document.createElement("span");
+      span.textContent = node.textContent;
+      node.replaceWith(span);
+    } else {
+      // সব attribute মুছে ফেলবে (onclick, style ইত্যাদি)
+      while (node.attributes.length > 0) {
+        node.removeAttribute(node.attributes[0].name);
+      }
+    }
+  }
+
+  div.innerHTML = temp.innerHTML;
+  return div;
+};
+
+
   // Render list of cards
   const renderCards = (list, containerEl, keyword = "") => {
     if (!containerEl) return;
@@ -305,7 +334,7 @@ document.addEventListener("DOMContentLoaded", () => {
       answerLabel.className = "label label-answer";
       answerLabel.textContent = "উত্তর: ";
       answerDiv.appendChild(answerLabel);
-      answerDiv.appendChild(buildHighlightedFragment(item.answer, keyword));
+      answerDiv.appendChild(renderWithHTML(item.answer));
       details.appendChild(answerDiv);
 
       if (item.details) {
@@ -314,7 +343,7 @@ document.addEventListener("DOMContentLoaded", () => {
         detailsLabel.className = "label label-details";
         detailsLabel.textContent = "বিস্তারিত: ";
         detailsDiv.appendChild(detailsLabel);
-        detailsDiv.appendChild(buildHighlightedFragment(item.details, keyword));
+        detailsDiv.appendChild(renderWithHTML(item.details));
         details.appendChild(detailsDiv);
       }
 
@@ -323,7 +352,7 @@ document.addEventListener("DOMContentLoaded", () => {
       keyLabel.className = "label label-keywords";
       keyLabel.textContent = "শিক্ষা: ";
       keyDiv.appendChild(keyLabel);
-      keyDiv.appendChild(buildHighlightedFragment(item.key_point || "-", keyword));
+      keyDiv.appendChild(renderWithHTML(item.key_point || "-"));
       details.appendChild(keyDiv);
 
       const sectionDiv = document.createElement("div");
@@ -331,7 +360,7 @@ document.addEventListener("DOMContentLoaded", () => {
       sectionLabel.className = "label label-section";
       sectionLabel.textContent = "ধারা: ";
       sectionDiv.appendChild(sectionLabel);
-      sectionDiv.appendChild(buildHighlightedFragment(item.law_section || "-", keyword));
+      sectionDiv.appendChild(renderWithHTML(item.law_section || "-"));
       details.appendChild(sectionDiv);
 
       const caseDiv = document.createElement("div");
@@ -339,7 +368,7 @@ document.addEventListener("DOMContentLoaded", () => {
       caseLabel.className = "label label-case";
       caseLabel.textContent = "মামলা: ";
       caseDiv.appendChild(caseLabel);
-      caseDiv.appendChild(buildHighlightedFragment(item.case_reference || "কোনো মামলা রেফারেন্স নেই", keyword));
+      caseDiv.appendChild(renderWithHTML(item.case_reference || "কোনো মামলা রেফারেন্স নেই"));
       details.appendChild(caseDiv);
 
       // Meta area (DOM nodes to avoid HTML injection)
