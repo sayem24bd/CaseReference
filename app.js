@@ -319,7 +319,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (item.keywords && item.keywords.length) {
         const kw = document.createElement("div");
-        kw.textContent = `শিক্ষা: ${item.keywords.map(k => `#${k}`).join(" · ")}`;
+        kw.textContent = `নোট: ${item.keywords.map(k => `#${k}`).join(" · ")}`;
         meta.appendChild(kw);
       }
 
@@ -979,3 +979,4 @@ document.addEventListener("DOMContentLoaded", () => {
 
   init();
 });
+
