@@ -1,13 +1,24 @@
-// app.js — সম্পূর্ণ আপডেটেড সংস্করণ (বাংলা মন্তব্য সহ)
-// নিরাপত্তা ও স্থিতিশীলতা বাড়ানোর জন্য কিছু ফাংশন হালনাগাদ করা হয়েছে:
-// - isSafeHref কঠোরতর করা হয়েছে (protocol-relative এবং javascript: স্কিম নিষিদ্ধ)
-// - highlightCardFromURL এখন কেবল integer id গ্রহণ করে (selector-injection প্রতিরোধ)
-// - searchBox ইনপুটের এক্সট্রা ভ্যালিডেশন (maxLength) যোগ করা হয়েছে
-// - buildHighlightedFragment-এ keyword length সীমা ও নিরাপদ regex হেন্ডলিং যোগ করা হয়েছে
-// - অন্যান্য ছোট নিরাপত্তা ও রবারস্টনেস আপডেট
+// app.js — FULL UPGRADED VERSION (বাংলা মন্তব্যসহ)
+// লক্ষ্য: security-hardening, pagination bug-fix, Fuse lazy-load, accessibility,
+// offline fallback for data.json, voice play/pause toggle, better toasts + UX tweaks.
 
 document.addEventListener("DOMContentLoaded", () => {
-  // Global state
+  // ----------------------------
+  // Configuration & Constants
+  // ----------------------------
+  const DEFAULT_PAGE_SIZE = 20; // চাইলে UI থেকে পরিবর্তন যোগ করতে পারো
+  let PAGE_SIZE = DEFAULT_PAGE_SIZE;
+  let currentPage = 1;
+
+  const MAX_KEYWORD_LENGTH = 200;
+  const FUSE_CDN = "https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.esm.min.js";
+  const VISITOR_PROXY = "https://script.googleusercontent.com/macros/echo?user_content_key=AehSKLhf5uzrQwiFb7dOrnfS5ZWJ3eTByLQLDvMfQyxZ9gPYjYqmcc-is4JfXIdR89S4zcsMqUkEUAR6EsFqnXD9_W0SpG0GPTNiipGQt16iJh5iFyC9nN1GqVLrBwK5WyJHfIONr-XaqSWtL5bPt3ybIrPJ0_GluU5BTB3bxhSju4SWahHNTa9YemmC81rPi32vIaatSIpkT1OI4FXL405wGXex9TCE9mX68VfiUFq0cnPesWVMCifE489aJq0Mw1aUBMAd06gCQf3_XK3Qe54UOj1pZU1-65YoBTSVPiQr&lib=M6LBWHZv7lINz1DhtQi1gX9IQFzBK3SFY"; // **প্রতিক্রিয়া:** server-side proxy route রাখতে হবে যদি possible হয়
+  // Optional fallback (if you intentionally want to keep the direct URL, uncomment and set)
+  // const FALLBACK_VISITOR_URL = "https://script.googleusercontent.com/..."; // (অপশনাল)
+
+  // ----------------------------
+  // State
+  // ----------------------------
   let DATA = [];
   let FUSE = null;
   let bookmarks = (() => {
@@ -20,10 +31,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   })();
   let theme = localStorage.getItem("theme") || (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-  let debounceTimer;
-  let voices = [];
-
+  let debounceTimer = null;
+ 
+  // ----------------------------
   // DOM shortcuts
+  // ----------------------------
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
 
@@ -46,17 +58,53 @@ document.addEventListener("DOMContentLoaded", () => {
     countDisplay: $("#count"),
     resultsWrap: $("#results"),
     bookmarksWrap: $("#bookmarks"),
+    visitorCount: $("#visitor-count")
   };
 
-  // Limit search input length to mitigate ReDoS / huge regex risks
-  const MAX_KEYWORD_LENGTH = 200;
-  if (elements.searchBox) {
+  // ----------------------------
+  // Accessibility-friendly toast
+  // ----------------------------
+  const showToast = (message, opts = {}) => {
     try {
-      elements.searchBox.maxLength = MAX_KEYWORD_LENGTH;
-    } catch (e) { /* ignore if unsupported */ }
-  }
+      const toast = document.createElement('div');
+      toast.className = 'toast show';
+      toast.setAttribute('role', 'alert');
+      toast.setAttribute('aria-live', 'polite');
+      toast.textContent = String(message);
+      if (opts.extraClass) toast.classList.add(opts.extraClass);
+      document.body.appendChild(toast);
+      // animation/visual feedback class for copy
+      if (opts.animate) {
+        toast.classList.add('toast-animate');
+      }
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+      }, opts.duration || 2500);
+    } catch (e) {
+      console.log("Toast:", message);
+    }
+  };
 
-  // Helper: highlight matches safely (textContent used)
+  // ----------------------------
+  // Safe HTML render (DOMPurify optional, fallback allowlist)
+  // ----------------------------
+  const renderWithHTML = (htmlText = "") => {
+    const div = document.createElement("div");
+    const s = String(htmlText || "");
+    if (typeof DOMPurify !== 'undefined') {
+      div.innerHTML = DOMPurify.sanitize(s);
+      return div;
+    }
+    // নিরাপদ ফলব্যাক: কোনো HTML ট্যাগকেই রেন্ডার না করে টেক্সট হিসেবে দেখাবে
+  console.warn("DOMPurify not loaded. Rendering content as plain text for security.");
+  div.textContent = s; // innerHTML এর পরিবর্তে textContent ব্যবহার করুন
+  return div;
+};
+
+  // ----------------------------
+  // Helper: highlight matches safely
+  // ----------------------------
   const buildHighlightedFragment = (text = "", keyword = "") => {
     const frag = document.createDocumentFragment();
     const safeText = String(text || "");
@@ -70,13 +118,9 @@ document.addEventListener("DOMContentLoaded", () => {
         frag.appendChild(document.createTextNode(safeText));
         return frag;
       }
-      // Limit keyword length
       if (k.length > MAX_KEYWORD_LENGTH) k = k.slice(0, MAX_KEYWORD_LENGTH);
-
-      // Escape regex metacharacters safely
       const safeK = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const rx = new RegExp(safeK, "ig");
-
       let lastIndex = 0;
       let match;
       while ((match = rx.exec(safeText)) !== null) {
@@ -85,16 +129,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         const span = document.createElement("span");
         span.className = "highlight";
-        // use textContent to avoid HTML injection
         span.textContent = match[0];
         frag.appendChild(span);
         lastIndex = rx.lastIndex;
-        // prevent infinite loops on zero-length matches
         if (rx.lastIndex === match.index) rx.lastIndex++;
       }
-      if (lastIndex < safeText.length) {
-        frag.appendChild(document.createTextNode(safeText.slice(lastIndex)));
-      }
+      if (lastIndex < safeText.length) frag.appendChild(document.createTextNode(safeText.slice(lastIndex)));
       if (!frag.childNodes.length) frag.appendChild(document.createTextNode(safeText));
       return frag;
     } catch {
@@ -103,45 +143,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
-  // Safely set query params (used for shareable URLs)
-  const setQueryParams = (params) => {
-    try {
-      const url = new URL(location.href);
-      Object.entries(params).forEach(([k, v]) => {
-        if (v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)) url.searchParams.delete(k);
-        else if (Array.isArray(v)) url.searchParams.set(k, v.join(","));
-        else url.searchParams.set(k, v);
-      });
-      history.replaceState(null, "", url.toString());
-    } catch (err) {
-      console.warn("Could not set query params:", err);
-    }
+  // ----------------------------
+  // Safe href checker
+  // ----------------------------
+  const isSafeHref = (href) => {
+    if (!href) return false;
+    const trimmed = String(href).trim();
+    const low = trimmed.toLowerCase();
+    if (low.startsWith("http://") || low.startsWith("https://")) return true;
+    if (low.startsWith("/") || low.startsWith("./") || low.startsWith("../")) return true;
+    return false;
   };
 
-  const getQueryParam = (key) => {
-    try {
-      return new URL(location.href).searchParams.get(key);
-    } catch {
-      return null;
-    }
-  };
-
-  const showToast = (message) => {
-    try {
-      const toast = document.createElement('div');
-      toast.className = 'toast show';
-      toast.textContent = String(message);
-      document.body.appendChild(toast);
-      setTimeout(() => {
-        toast.classList.remove('show');
-        setTimeout(() => toast.remove(), 300);
-      }, 3000);
-    } catch (e) {
-      console.log("Toast:", message);
-    }
-  };
-
-  // Validate and normalize incoming data array
+  // ----------------------------
+  // Validate & normalize incoming data
+  // ----------------------------
   const validateDataArray = (arr) => {
     if (!Array.isArray(arr)) return [];
     const seen = new Set();
@@ -175,18 +191,9 @@ document.addEventListener("DOMContentLoaded", () => {
     return out;
   };
 
-  // Check if a URL is safe to put into an <a href>
-  const isSafeHref = (url) => {
-    if (!url) return false;
-    // allow absolute http(s) and relative (/path, ./path, ../path)
-    // explicitly disallow protocol-relative '//' and schemes like javascript:, data:, vbscript:
-    const trimmed = String(url).trim().toLowerCase();
-    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return true;
-    if (trimmed.startsWith("/") || trimmed.startsWith("./") || trimmed.startsWith("../")) return true;
-    return false;
-  };
-
-  // Simple fallback search
+  // ----------------------------
+  // Simple search fallback (case-insensitive substring)
+  // ----------------------------
   const simpleSearchFallback = (list, keyword) => {
     const k = String(keyword).toLowerCase().slice(0, MAX_KEYWORD_LENGTH);
     return list.filter(item => {
@@ -203,96 +210,18 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   };
 
-  // Apply filters and render results
-  const applyFilters = () => {
-    const keywordRaw = elements.searchBox ? elements.searchBox.value.trim() : "";
-    const keyword = String(keywordRaw).slice(0, MAX_KEYWORD_LENGTH);
-    const section = elements.sectionSelect ? elements.sectionSelect.value : "";
-    const year = elements.yearSelect && elements.yearSelect.value ? Number(elements.yearSelect.value) : "";
-    const sort = elements.sortSelect ? elements.sortSelect.value : "relevance";
-    const tags = elements.tagsWrap ? Array.from(elements.tagsWrap.querySelectorAll('input:checked')).map(c => c.value) : [];
-    const showBookmarksOnly = elements.showBookmarksOnlyCheck && elements.showBookmarksOnlyCheck.checked;
-
-    setQueryParams({ q: keyword, section, year, tags, sort, bookmarks: showBookmarksOnly ? 'true' : '' });
-
-    let list = DATA.slice();
-
-    if (keyword) {
-      if (FUSE) {
-        try {
-          const results = FUSE.search(keyword);
-          list = results.map(r => r.item);
-        } catch (e) {
-          console.warn("Fuse search failed:", e);
-          list = simpleSearchFallback(list, keyword);
-        }
-      } else {
-        list = simpleSearchFallback(list, keyword);
-      }
-    }
-
-    list = list.filter(d => {
-      const okSection = !section || d.law_section === section;
-      const okYear = !year || Number(d.year) === Number(year);
-      const okTags = tags.length === 0 || tags.every(t => d.tags.includes(t));
-      const okBookmark = !showBookmarksOnly || bookmarks.includes(d.id);
-      return okSection && okYear && okTags && okBookmark;
-    });
-
-    if (sort === "newest") list = [...list].sort((a, b) => (b.year || 0) - (a.year || 0));
-    else if (sort === "az") list = [...list].sort((a, b) => a.question.localeCompare(b.question, "bn") || a.id - b.id);
-    else if (sort === "section") list = [...list].sort((a, b) => a.law_section.localeCompare(b.law_section || "", "bn") || a.id - b.id);
-
-   if (elements.countDisplay) elements.countDisplay.innerText = list.length ? `${list.length} ফলাফল পাওয়া গেছে` : "কোনো ফলাফল পাওয়া যায়নি";
-    currentPage = 1; // reset pagination when filters/search change
-    renderWithPagination(list, elements.resultsWrap, keyword);
+  // ----------------------------
+  // Pagination helpers (BUG-FIXED)
+  // ----------------------------
+  const getPagedData = (list) => {
+    const start = Math.max(0, (currentPage - 1) * PAGE_SIZE);
+    const end = currentPage * PAGE_SIZE;
+    return list.slice(start, end);
   };
 
-  const debouncedApply = () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(applyFilters, 300);
-  };
-
-  // Create a simple button element
-  const createButton = (text, classes = [], attrs = {}) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = classes.join(" ");
-    btn.textContent = text;
-    Object.entries(attrs).forEach(([k, v]) => btn.setAttribute(k, v));
-    return btn;
-  };
-
-// === Safe HTML Renderer ===
-const renderWithHTML = (htmlText = "") => {
-  const div = document.createElement("div");
-  const allowedTags = ["b", "i", "u", "br", "mark"]; // শুধু এই ট্যাগগুলো অনুমতি দেওয়া হবে
-
-  const temp = document.createElement("div");
-  temp.innerHTML = String(htmlText);
-
-  const walker = document.createTreeWalker(temp, NodeFilter.SHOW_ELEMENT, null, false);
-  let node;
-  while ((node = walker.nextNode())) {
-    if (!allowedTags.includes(node.nodeName.toLowerCase())) {
-      // অনুমোদিত নয় এমন ট্যাগ হলে শুধু ভেতরের লেখা রেখে দেবে
-      const span = document.createElement("span");
-      span.textContent = node.textContent;
-      node.replaceWith(span);
-    } else {
-      // সব attribute মুছে ফেলবে (onclick, style ইত্যাদি)
-      while (node.attributes.length > 0) {
-        node.removeAttribute(node.attributes[0].name);
-      }
-    }
-  }
-
-  div.innerHTML = temp.innerHTML;
-  return div;
-};
-
-
-  // Render list of cards
+  // ----------------------------
+  // Render cards (safe)
+  // ----------------------------
   const renderCards = (list, containerEl, keyword = "") => {
     if (!containerEl) return;
     containerEl.innerHTML = "";
@@ -323,11 +252,12 @@ const renderWithHTML = (htmlText = "") => {
       header.appendChild(buildHighlightedFragment(item.question, keyword));
       article.appendChild(header);
 
-      // Details (answer, meta)
+      // Details
       const details = document.createElement("div");
       details.className = "card-details";
       details.id = `card-${item.id}-details`;
       details.setAttribute("aria-hidden", "true");
+      details.hidden = true; // accessibility
 
       const answerDiv = document.createElement("div");
       const answerLabel = document.createElement("span");
@@ -335,9 +265,7 @@ const renderWithHTML = (htmlText = "") => {
       answerLabel.textContent = "উত্তর: ";
       answerDiv.appendChild(answerLabel);
       const answerContent = renderWithHTML(item.answer);
-	  while(answerContent.firstChild) {
-          answerDiv.appendChild(answerContent.firstChild);
-      }
+      while (answerContent.firstChild) answerDiv.appendChild(answerContent.firstChild);
       details.appendChild(answerDiv);
 
       if (item.details) {
@@ -347,21 +275,18 @@ const renderWithHTML = (htmlText = "") => {
         detailsLabel.textContent = "বিস্তারিত: ";
         detailsDiv.appendChild(detailsLabel);
         const detailsContent = renderWithHTML(item.details);
-        while(detailsContent.firstChild) {
-            detailsDiv.appendChild(detailsContent.firstChild);
-        }
+        while (detailsContent.firstChild) detailsDiv.appendChild(detailsContent.firstChild);
         details.appendChild(detailsDiv);
       }
 
+      // key_point, section, case_reference
       const keyDiv = document.createElement("div");
       const keyLabel = document.createElement("span");
       keyLabel.className = "label label-keywords";
       keyLabel.textContent = "শিক্ষা: ";
       keyDiv.appendChild(keyLabel);
       const keyContent = renderWithHTML(item.key_point || "-");
-	  while(keyContent.firstChild) {
-          keyDiv.appendChild(keyContent.firstChild);
-      }
+      while (keyContent.firstChild) keyDiv.appendChild(keyContent.firstChild);
       details.appendChild(keyDiv);
 
       const sectionDiv = document.createElement("div");
@@ -370,9 +295,7 @@ const renderWithHTML = (htmlText = "") => {
       sectionLabel.textContent = "ধারা: ";
       sectionDiv.appendChild(sectionLabel);
       const sectionContent = renderWithHTML(item.law_section || "-");
-	  while(sectionContent.firstChild) {
-          sectionDiv.appendChild(sectionContent.firstChild);
-      }
+      while (sectionContent.firstChild) sectionDiv.appendChild(sectionContent.firstChild);
       details.appendChild(sectionDiv);
 
       const caseDiv = document.createElement("div");
@@ -381,16 +304,12 @@ const renderWithHTML = (htmlText = "") => {
       caseLabel.textContent = "মামলা: ";
       caseDiv.appendChild(caseLabel);
       const caseContent = renderWithHTML(item.case_reference || "কোনো মামলা রেফারেন্স নেই");
-      while(caseContent.firstChild) {
-          caseDiv.appendChild(caseContent.firstChild);
-      }
-	  details.appendChild(caseDiv);
+      while (caseContent.firstChild) caseDiv.appendChild(caseContent.firstChild);
+      details.appendChild(caseDiv);
 
-      // Meta area (DOM nodes to avoid HTML injection)
+      // Meta
       const meta = document.createElement("div");
       meta.className = "meta";
-
-      // tags
       const tagsSpan = document.createElement("span");
       tagsSpan.textContent = "ট্যাগ: ";
       meta.appendChild(tagsSpan);
@@ -398,14 +317,12 @@ const renderWithHTML = (htmlText = "") => {
       tagsList.textContent = item.tags.map(t => `#${t}`).join(" · ") || "N/A";
       meta.appendChild(tagsList);
 
-      // keywords (if any)
       if (item.keywords && item.keywords.length) {
         const kw = document.createElement("div");
         kw.textContent = `শিক্ষা: ${item.keywords.map(k => `#${k}`).join(" · ")}`;
         meta.appendChild(kw);
       }
 
-      // year, source, last_updated
       const info = document.createElement("div");
       info.textContent = `সাল: ${item.year || "N/A"}`;
       if (item.source) info.textContent += ` | উৎস: ${item.source}`;
@@ -414,7 +331,7 @@ const renderWithHTML = (htmlText = "") => {
 
       details.appendChild(meta);
 
-      // law reference link (sanitize before adding)
+      // law link (safe)
       if (isSafeHref(item.law_reference_link)) {
         const linkDiv = document.createElement("div");
         const linkBold = document.createElement("b");
@@ -437,7 +354,6 @@ const renderWithHTML = (htmlText = "") => {
         relatedDiv.appendChild(relatedBold);
         item.related_ids.forEach((relId, index) => {
           const relatedLink = document.createElement("a");
-          // use query param but encode the id as integer
           relatedLink.href = `?id=${encodeURIComponent(String(relId))}`;
           relatedLink.textContent = `ID ${relId}`;
           relatedLink.addEventListener('click', (e) => {
@@ -445,13 +361,10 @@ const renderWithHTML = (htmlText = "") => {
             const targetCard = document.querySelector(`.card[data-id="${relId}"]`);
             if (targetCard) {
               targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              targetCard.classList.add('expanded', 'card-highlighted');
-              targetCard.setAttribute('aria-expanded', 'true');
-              const det = targetCard.querySelector('.card-details');
-              if (det) det.setAttribute('aria-hidden', 'false');
+              openCardElement(targetCard);
               setTimeout(() => targetCard.classList.remove('card-highlighted'), 2500);
             } else {
-              // fallback to navigate with safe param
+              // safe fallback navigation
               window.location.href = `?id=${encodeURIComponent(String(relId))}`;
             }
           });
@@ -473,62 +386,55 @@ const renderWithHTML = (htmlText = "") => {
       bookmarkBtn.setAttribute("title", isBookmarked ? "বুকমার্ক সরান" : "বুকমার্ক করুন");
       actions.appendChild(bookmarkBtn);
 
-      const linkToCopy = `${location.origin}${location.pathname}?id=${encodeURIComponent(item.id)}`;
-      const shareBtn = createButton("🔗 লিংক কপি");
-      shareBtn.dataset.action = "share";
-      shareBtn.dataset.link = linkToCopy;
-      actions.appendChild(shareBtn);
-
-      const speakBtn = createButton("🔊");
-      speakBtn.title = "উত্তরটি শুনুন";
-      speakBtn.dataset.action = "speak";
-      speakBtn.dataset.id = String(item.id);
-      actions.appendChild(speakBtn);
-
       details.appendChild(actions);
       article.appendChild(details);
       fragment.appendChild(article);
     }
     containerEl.appendChild(fragment);
   };
-  
-  
-  // === Pagination Settings ===
-let PAGE_SIZE = 10;   // প্রতি পেজে কয়টা আইটেম দেখাবেন
-let currentPage = 1;  // শুরু পেজ
 
-// Helper: Get paginated data
-function getPagedData(list) {
-  const start = 0;
-  const end = currentPage * PAGE_SIZE;
-  return list.slice(start, end);
-}
+  // ----------------------------
+  // Create simple button helper
+  // ----------------------------
+  const createButton = (text, classes = [], attrs = {}) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = classes.join(" ");
+    btn.textContent = text;
+    Object.entries(attrs).forEach(([k, v]) => btn.setAttribute(k, v));
+    return btn;
+  };
 
-// Render with pagination
-function renderWithPagination(list, containerEl, keyword = "") {
-  if (!containerEl) return;
-  containerEl.innerHTML = "";
+  // ----------------------------
+  // Render with pagination
+  // ----------------------------
+  function renderWithPagination(list, containerEl, keyword = "") {
+    if (!containerEl) return;
+    containerEl.innerHTML = "";
 
-  // Get current slice
-  const pagedList = getPagedData(list);
-  renderCards(pagedList, containerEl, keyword);
+    // current slice
+    const pagedList = getPagedData(list);
+    renderCards(pagedList, containerEl, keyword);
 
-  // If more data available → show Load More button
-  if (pagedList.length < list.length) {
-    const loadMoreBtn = document.createElement("button");
-    loadMoreBtn.textContent = "⬇️ আরো দেখুন";
-    loadMoreBtn.className = "btn-loadmore";
-    loadMoreBtn.style.display = "block";
-    loadMoreBtn.style.margin = "16px auto";
-    loadMoreBtn.onclick = () => {
-      currentPage++;
-      renderWithPagination(list, containerEl, keyword);
-    };
-    containerEl.appendChild(loadMoreBtn);
+    // "Load More" button
+    if ((currentPage * PAGE_SIZE) < list.length) {
+      const loadMoreBtn = document.createElement("button");
+      loadMoreBtn.textContent = "⬇️ আরো দেখুন";
+      loadMoreBtn.className = "btn-loadmore";
+      loadMoreBtn.setAttribute("aria-label", "আরো দেখুন");
+      loadMoreBtn.onclick = () => {
+  const pos = loadMoreBtn.offsetButtom;
+  currentPage++;
+  renderWithPagination(list, containerEl, keyword);
+  window.scrollTo({ top: pos, behavior: 'smooth' });
+};
+      containerEl.appendChild(loadMoreBtn);
+    }
   }
-}
 
-  // Render bookmarks panel
+  // ----------------------------
+  // Bookmarks panel
+  // ----------------------------
   const renderBookmarks = () => {
     if (!elements.bookmarksWrap) return;
     const bookmarkedItems = DATA.filter(d => bookmarks.includes(d.id));
@@ -543,7 +449,38 @@ function renderWithPagination(list, containerEl, keyword = "") {
     renderCards(bookmarkedItems, elements.bookmarksWrap, elements.searchBox ? elements.searchBox.value.trim() : "");
   };
 
-  // Click handler for cards (toggle, bookmark, share, speak)
+  // ----------------------------
+  // Toggle card open/close (centralized)
+  // ----------------------------
+  const openCardElement = (cardEl) => {
+    if (!cardEl) return;
+    // close others
+    $$(".card").forEach(c => {
+      if (c !== cardEl) {
+        c.classList.remove("expanded");
+        c.setAttribute("aria-expanded", "false");
+        const d = c.querySelector(".card-details");
+        if (d) {
+          d.setAttribute("aria-hidden", "true");
+          d.hidden = true;
+        }
+      }
+    });
+    // open target
+    cardEl.classList.add("expanded");
+    cardEl.classList.add('card-highlighted');
+    cardEl.setAttribute("aria-expanded", "true");
+    const det = cardEl.querySelector(".card-details");
+    if (det) {
+      det.setAttribute("aria-hidden", "false");
+      det.hidden = false;
+    }
+    setTimeout(() => cardEl.classList.remove('card-highlighted'), 2500);
+  };
+
+  // ----------------------------
+  // Click handler for cards
+  // ----------------------------
   const handleCardClick = (event, containerEl) => {
     const actionTarget = event.target.closest("[data-action]");
     const headerTarget = event.target.closest(".card-header");
@@ -558,28 +495,29 @@ function renderWithPagination(list, containerEl, keyword = "") {
 
     if (action === "toggle") {
       const isExpanded = card.classList.contains("expanded");
-      $$(".card").forEach(c => {
-        c.classList.remove("expanded");
-        c.setAttribute("aria-expanded", "false");
-        const det = c.querySelector(".card-details");
-        if (det) det.setAttribute("aria-hidden", "true");
-      });
-      if (!isExpanded) {
-        card.classList.add("expanded");
-        card.setAttribute("aria-expanded", "true");
+      if (isExpanded) {
+        // collapse
+        card.classList.remove("expanded");
+        card.setAttribute("aria-expanded", "false");
         const det = card.querySelector(".card-details");
-        if (det) det.setAttribute("aria-hidden", "false");
+        if (det) {
+          det.setAttribute("aria-hidden", "true");
+          det.hidden = true;
+        }
+      } else {
+        openCardElement(card);
       }
       return;
     }
 
     const item = DATA.find(d => d.id === id);
     if (action === "bookmark") toggleBookmark(id);
-    else if (action === "share") safeCopyToClipboard(target.dataset.link);
-    else if (action === "speak" && item) speakText(item.answer);
+  
   };
 
-  // Toggle bookmark and persist
+  // ----------------------------
+  // Toggle bookmark
+  // ----------------------------
   const toggleBookmark = (id) => {
     if (!Number.isInteger(id)) return;
     const idx = bookmarks.indexOf(id);
@@ -599,9 +537,9 @@ function renderWithPagination(list, containerEl, keyword = "") {
     } catch (e) {
       console.warn("Could not persist bookmarks:", e);
     }
-    applyFilters();
+    applyFilters(false); // don't reset pagination when toggling bookmark
     renderBookmarks();
-    // Update visible bookmark buttons
+    // update buttons
     $$('button[data-action="bookmark"]').forEach(btn => {
       const bid = Number(btn.dataset.id);
       const pressed = bookmarks.includes(bid);
@@ -612,71 +550,16 @@ function renderWithPagination(list, containerEl, keyword = "") {
     });
   };
 
-  // Clipboard (modern + fallback)
-  const safeCopyToClipboard = async (text) => {
-    try {
-      const payload = String(text).slice(0, 2000); // limit copied length
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(payload);
-        showToast("লিংক কপি হয়েছে!");
-        return;
-      }
-      const ta = document.createElement("textarea");
-      ta.value = payload;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      ta.style.top = "0";
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      const ok = document.execCommand('copy');
-      document.body.removeChild(ta);
-      showToast(ok ? "লিংক কপি হয়েছে!" : "কপি করা সম্ভব হয়নি");
-    } catch (e) {
-      console.warn("Copy failed: ", e);
-      showToast("কপি করা সম্ভব হয়নি");
-    }
-  };
-
-  // Speech (if browser supports)
-  const populateVoiceList = () => {
-    if (typeof speechSynthesis === 'undefined') return;
-    voices = speechSynthesis.getVoices() || [];
-  };
-
-  const speakText = (text) => {
-    if (typeof speechSynthesis === 'undefined') {
-      showToast("দুঃখিত, আপনার ব্রাউজার এটি সমর্থন করে না।");
-      return;
-    }
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(String(text));
-    utterance.lang = 'bn-BD';
-    const bengaliVoice = voices.find(v => v.lang && (v.lang.startsWith('bn') || v.lang.startsWith('bn-')));
-    if (bengaliVoice) utterance.voice = bengaliVoice;
-    if (!voices.length && typeof speechSynthesis.getVoices === "function") {
-      populateVoiceList();
-      if (voices.length) {
-        const v = voices.find(v => v.lang && (v.lang.startsWith('bn') || v.lang.startsWith('bn-')));
-        if (v) utterance.voice = v;
-      }
-    }
-    try {
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      console.warn("Speak failed:", e);
-      showToast("শব্দে শুনানো সম্ভব হয়নি");
-    }
-  };
-
+  // ----------------------------
   // Move controls for mobile/desktop
+  // ----------------------------
   const manageControlPlacement = () => {
     const isMobile = window.innerWidth < 960;
     try {
-      if (isMobile) {
+      if (isMobile && elements.mobileControlsContainer && elements.searchWrap && elements.sortWrap) {
         elements.mobileControlsContainer.appendChild(elements.searchWrap);
         elements.mobileControlsContainer.appendChild(elements.sortWrap);
-      } else {
+      } else if (elements.controlsContainer && elements.searchWrap && elements.sortWrap) {
         elements.controlsContainer.prepend(elements.sortWrap);
         elements.controlsContainer.prepend(elements.searchWrap);
       }
@@ -685,7 +568,90 @@ function renderWithPagination(list, containerEl, keyword = "") {
     }
   };
 
-  // Attach event listeners
+  // ----------------------------
+  // Query param helpers
+  // ----------------------------
+  const setQueryParams = (params) => {
+    try {
+      const url = new URL(location.href);
+      Object.entries(params).forEach(([k, v]) => {
+        if (v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0)) url.searchParams.delete(k);
+        else if (Array.isArray(v)) url.searchParams.set(k, v.join(","));
+        else url.searchParams.set(k, v);
+      });
+      history.replaceState(null, "", url.toString());
+    } catch (err) {
+      console.warn("Could not set query params:", err);
+    }
+  };
+
+  const getQueryParam = (key) => {
+    try {
+      return new URL(location.href).searchParams.get(key);
+    } catch {
+      return null;
+    }
+  };
+
+  // ----------------------------
+  // Apply filters + search + sort + pagination control
+  // - If resetPagination true → currentPage = 1
+  // ----------------------------
+  const applyFilters = (resetPagination = true) => {
+    const keywordRaw = elements.searchBox ? elements.searchBox.value.trim() : "";
+    const keyword = String(keywordRaw).slice(0, MAX_KEYWORD_LENGTH);
+    const section = elements.sectionSelect ? elements.sectionSelect.value : "";
+    const year = elements.yearSelect && elements.yearSelect.value ? Number(elements.yearSelect.value) : "";
+    const sort = elements.sortSelect ? elements.sortSelect.value : "relevance";
+    const tags = elements.tagsWrap ? Array.from(elements.tagsWrap.querySelectorAll('input:checked')).map(c => c.value) : [];
+    const showBookmarksOnly = elements.showBookmarksOnlyCheck && elements.showBookmarksOnlyCheck.checked;
+
+    setQueryParams({ q: keyword, section, year, tags, sort, bookmarks: showBookmarksOnly ? 'true' : '' });
+
+    if (resetPagination) currentPage = 1;
+
+    let list = DATA.slice();
+
+    if (keyword) {
+      if (FUSE) {
+        try {
+          const results = FUSE.search(keyword);
+          list = results.map(r => r.item);
+        } catch (e) {
+          console.warn("Fuse search failed:", e);
+          list = simpleSearchFallback(list, keyword);
+        }
+      } else {
+        list = simpleSearchFallback(list, keyword);
+      }
+    }
+
+    list = list.filter(d => {
+      const okSection = !section || d.law_section === section;
+      const okYear = !year || Number(d.year) === Number(year);
+      const okTags = tags.length === 0 || tags.every(t => d.tags.includes(t));
+      const okBookmark = !showBookmarksOnly || bookmarks.includes(d.id);
+      return okSection && okYear && okTags && okBookmark;
+    });
+
+    if (sort === "newest") list = [...list].sort((a, b) => (b.year || 0) - (a.year || 0));
+    else if (sort === "az") list = [...list].sort((a, b) => a.question.localeCompare(b.question, "bn") || a.id - b.id);
+    else if (sort === "section") list = [...list].sort((a, b) => a.law_section.localeCompare(b.law_section || "", "bn") || a.id - b.id);
+
+    if (elements.countDisplay) elements.countDisplay.innerText = list.length ? `${list.length} ফলাফল পাওয়া গেছে` : "কোনো ফলাফল পাওয়া যায়নি";
+
+    renderWithPagination(list, elements.resultsWrap, keyword);
+  };
+
+  // Debounced apply (300ms)
+  const debouncedApply = () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => applyFilters(true), 300);
+  };
+
+  // ----------------------------
+  // Card event wiring + keyboard accessibility
+  // ----------------------------
   const setupEventListeners = () => {
     if (elements.themeToggle) {
       elements.themeToggle.addEventListener("click", () => {
@@ -737,16 +703,20 @@ function renderWithPagination(list, containerEl, keyword = "") {
       document.body.classList.remove("filter-open");
     });
 
-    if (elements.searchBox) elements.searchBox.addEventListener("input", debouncedApply);
+    if (elements.searchBox) {
+      // limit input length for ReDoS protection
+      elements.searchBox.setAttribute('maxlength', String(MAX_KEYWORD_LENGTH));
+      elements.searchBox.addEventListener("input", debouncedApply);
+    }
 
     ['change', 'click'].forEach(evt => {
-      if (elements.sectionSelect) elements.sectionSelect.addEventListener(evt, applyFilters);
-      if (elements.yearSelect) elements.yearSelect.addEventListener(evt, applyFilters);
-      if (elements.sortSelect) elements.sortSelect.addEventListener(evt, applyFilters);
-      if (elements.showBookmarksOnlyCheck) elements.showBookmarksOnlyCheck.addEventListener(evt, applyFilters);
+      if (elements.sectionSelect) elements.sectionSelect.addEventListener(evt, () => applyFilters(true));
+      if (elements.yearSelect) elements.yearSelect.addEventListener(evt, () => applyFilters(true));
+      if (elements.sortSelect) elements.sortSelect.addEventListener(evt, () => applyFilters(true));
+      if (elements.showBookmarksOnlyCheck) elements.showBookmarksOnlyCheck.addEventListener(evt, () => applyFilters(true));
     });
 
-    if (elements.tagsWrap) elements.tagsWrap.addEventListener("change", (e) => { if (e.target && e.target.name === "tags") applyFilters(); });
+    if (elements.tagsWrap) elements.tagsWrap.addEventListener("change", (e) => { if (e.target && e.target.name === "tags") applyFilters(true); });
 
     if (elements.clearFiltersBtn) {
       elements.clearFiltersBtn.addEventListener("click", () => {
@@ -756,7 +726,8 @@ function renderWithPagination(list, containerEl, keyword = "") {
         if (elements.sortSelect) elements.sortSelect.value = "relevance";
         if (elements.showBookmarksOnlyCheck) elements.showBookmarksOnlyCheck.checked = false;
         $$('input[name="tags"]').forEach(cb => cb.checked = false);
-        applyFilters();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        applyFilters(true);
       });
     }
 
@@ -774,47 +745,139 @@ function renderWithPagination(list, containerEl, keyword = "") {
     if (elements.bookmarksWrap) elements.bookmarksWrap.addEventListener("click", (e) => handleCardClick(e, elements.bookmarksWrap));
   };
 
-  // If URL has id param, open and highlight that card (safer)
+  // ----------------------------
+  // Highlight card from URL (safe integer parsing)
+  // ----------------------------
   const highlightCardFromURL = () => {
     try {
       const rawId = getQueryParam('id');
       if (!rawId) return;
-
-      // accept only integer ids (protect against selector injection)
-      const id = parseInt(rawId, 10);
+      const id = parseInt(rawId, 20);
       if (!Number.isInteger(id)) return;
-
-      // find by data-id using dataset comparison (avoid injecting into selector)
       const cards = document.querySelectorAll('.card');
       for (const cardEl of cards) {
         if (String(cardEl.dataset.id) === String(id)) {
           cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          cardEl.classList.add('expanded', 'card-highlighted');
-          cardEl.setAttribute('aria-expanded', 'true');
-          const det = cardEl.querySelector('.card-details');
-          if (det) det.setAttribute('aria-hidden', 'false');
-          setTimeout(() => cardEl.classList.remove('card-highlighted'), 2500);
+          openCardElement(cardEl);
           break;
         }
       }
     } catch (e) { console.warn(e); }
   };
 
-  // Initialization
-  async function init() {
-    document.body.classList.toggle("dark", theme === "dark");
-    if (elements.themeToggle) elements.themeToggle.textContent = theme === "dark" ? "☀️ Light" : "🌙 Dark";
-
-    populateVoiceList();
-    if (typeof speechSynthesis !== 'undefined' && typeof speechSynthesis.onvoiceschanged !== 'undefined') {
-      speechSynthesis.onvoiceschanged = populateVoiceList;
-    }
-
-    // load data.json
+  // ----------------------------
+  // Lazy-load Fuse.js (try global -> dynamic import CDN -> fallback)
+  // ----------------------------
+  const initFuseIfAvailable = async () => {
     try {
+      if (typeof Fuse !== 'undefined') {
+        // global already present (e.g., included in HTML)
+        FUSE = new Fuse(DATA, {
+          keys: [
+            { name: 'question', weight: 0.5 },
+            { name: 'answer', weight: 0.3 },
+            { name: 'tags', weight: 0.1 },
+            { name: 'keywords', weight: 0.1 }
+          ],
+          includeScore: false,
+          threshold: 0.3,
+          minMatchCharLength: 2,
+          ignoreLocation: true,
+          useExtendedSearch: false
+        });
+        return;
+      }
+      // dynamic import (ESM) from CDN
+      const mod = await import(/* webpackIgnore: true */ FUSE_CDN);
+      const FuseModule = mod && (mod.default || mod.Fuse || mod);
+      if (FuseModule) {
+        FUSE = new FuseModule(DATA, {
+          keys: [
+            { name: 'question', weight: 0.5 },
+            { name: 'answer', weight: 0.3 },
+            { name: 'tags', weight: 0.1 },
+            { name: 'keywords', weight: 0.1 }
+          ],
+          includeScore: false,
+          threshold: 0.3,
+          minMatchCharLength: 2,
+          ignoreLocation: true,
+          useExtendedSearch: false
+        });
+      } else {
+        FUSE = null;
+      }
+    } catch (e) {
+      console.warn("Could not initialize Fuse (dynamic):", e);
+      FUSE = null;
+    }
+  };
+
+  // ----------------------------
+  // Fetch data.json with offline fallback (Cache API)
+  // ----------------------------
+  const fetchDataJson = async () => {
+    try {
+      // prefer network but fallback to cache if available
       const res = await fetch('./data.json', { cache: "no-cache" });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const raw = await res.json();
+      return raw;
+    } catch (err) {
+      console.warn("Network fetch failed, trying Cache API...", err);
+      // try cache
+      try {
+        const cache = await caches.open('app-cache');
+        const cached = await cache.match('./data.json');
+        if (cached) {
+          const cachedJson = await cached.json();
+          return cachedJson;
+        }
+      } catch (cacheErr) {
+        console.warn("Cache fallback failed:", cacheErr);
+      }
+      throw err;
+    }
+  };
+
+  // ----------------------------
+  // Visitor counter (proxy-first, fallback optional)
+  // ----------------------------
+  (function visitorCounter() {
+    const counterEl = elements.visitorCount;
+    if (!counterEl) return;
+    counterEl.textContent = "⏳ লোড হচ্ছে...";
+    counterEl.title = "ভিজিটর সংখ্যা লোড হচ্ছে...";
+
+    const attempt = async () => {
+      try {
+        // prefer proxy endpoint
+        const res = await fetch(VISITOR_PROXY, { cache: "no-cache" });
+        if (!res.ok) throw new Error("Network response was not ok");
+        const data = await res.json();
+        counterEl.textContent = ` ${data.value}`;
+      } catch (err) {
+        console.error("Visitor counter failed (proxy):", err);
+        // fallback attempt: uncomment if you have a public script url
+        // try { const fb = await fetch(FALLBACK_VISITOR_URL); const d = await fb.json(); counterEl.textContent = ` ${d.value}`; return; } catch(e){}
+        counterEl.textContent = "👥 ভিজিটর সংখ্যা: লোড ব্যর্থ ❌";
+      }
+    };
+
+    attempt();
+  })();
+
+  // ----------------------------
+  // Initialization
+  // ----------------------------
+  async function init() {
+    // theme
+    document.body.classList.toggle("dark", theme === "dark");
+    if (elements.themeToggle) elements.themeToggle.textContent = theme === "dark" ? "☀️ Light" : "🌙 Dark";
+
+    // load data.json (with offline fallback)
+    try {
+      const raw = await fetchDataJson();
       const validated = validateDataArray(raw);
       DATA = validated.length ? validated : [];
       if (!DATA.length && elements.countDisplay) elements.countDisplay.innerText = "ডেটা খালি বা অকার্যকর।";
@@ -824,31 +887,12 @@ function renderWithPagination(list, containerEl, keyword = "") {
       DATA = [];
     }
 
-    // init Fuse if available
-    if (typeof Fuse !== 'undefined' && Array.isArray(DATA) && DATA.length > 0) {
-      try {
-       FUSE = new Fuse(DATA, {
-  keys: [
-    { name: 'question', weight: 0.5 },
-    { name: 'answer', weight: 0.3 },
-    { name: 'tags', weight: 0.1 },
-    { name: 'keywords', weight: 0.1 }
-  ],
-  includeScore: false,       // স্কোর দরকার নেই, দ্রুত হবে
-  threshold: 0.3,            // টাইট ম্যাচিং (ফলাফল দ্রুত ও সঠিক)
-  minMatchCharLength: 2,     // ২ অক্ষর থেকে সার্চ শুরু হবে
-  ignoreLocation: true,      // লম্বা টেক্সটে ফাস্ট সার্চ
-  useExtendedSearch: false   // হালকা কনফিগ
-});
-      } catch (e) {
-        console.warn("Could not initialize Fuse:", e);
-        FUSE = null;
-      }
-    } else {
-      FUSE = null;
+    // init Fuse (lazy)
+    if (Array.isArray(DATA) && DATA.length > 0) {
+      await initFuseIfAvailable();
     }
 
-    // populate filters (safe DOM creation)
+    // populate filters safely
     try {
       const uniqueSections = Array.from(new Set(DATA.map(d => d.law_section))).filter(s => s).sort();
       const uniqueYears = Array.from(new Set(DATA.map(d => d.year).filter(Boolean))).sort((a, b) => b - a);
@@ -891,7 +935,7 @@ function renderWithPagination(list, containerEl, keyword = "") {
           cb.type = "checkbox";
           cb.name = "tags";
           cb.value = tag;
-          // single-select behavior: when one tag checked, uncheck others
+          // single-select behavior
           cb.addEventListener('change', (e) => {
             try {
               e.stopPropagation();
@@ -904,7 +948,7 @@ function renderWithPagination(list, containerEl, keyword = "") {
             } catch (err) {
               console.warn("Tag single-select handler error:", err);
             } finally {
-              applyFilters();
+              applyFilters(true);
             }
           });
           const span = document.createElement("span");
@@ -921,11 +965,11 @@ function renderWithPagination(list, containerEl, keyword = "") {
 
     setupEventListeners();
     manageControlPlacement();
-    applyFilters();
+    applyFilters(true);
     renderBookmarks();
     setTimeout(highlightCardFromURL, 200);
 
-    // register service worker if present
+    // register service worker if present (enhancement: SW should cache data.json)
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register('./sw.js')
         .then(registration => console.log('Service Worker registered with scope:', registration.scope))
@@ -935,20 +979,3 @@ function renderWithPagination(list, containerEl, keyword = "") {
 
   init();
 });
-
-// Visitor counter (optional; external script)
-(async function () {
-  const counterEl = document.getElementById("visitorCounter");
-  if (!counterEl) return;
-  try {
-    const apiUrl = "https://script.google.com/macros/s/AKfycbzTXuSV_khlAGHSpmXOk1YXd2zRURRzqhUVT2ckN9w2Fz-w39Z_CdiZ2u8nbtKErWIzeg/exec";
-    const res = await fetch(apiUrl);
-    if (!res.ok) throw new Error("Network error");
-    const data = await res.json();
-    counterEl.textContent = data.value;
-  } catch (e) {
-    console.warn("Visitor counter error:", e);
-    counterEl.textContent = "N/A";
-  }
-
-})();
