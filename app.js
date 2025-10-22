@@ -317,9 +317,9 @@ document.addEventListener("DOMContentLoaded", () => {
       tagsList.textContent = item.tags.map(t => `#${t}`).join(" · ") || "N/A";
       meta.appendChild(tagsList);
 
-      if (item.keywords && item.keywords.length) {
+      if (item.title && item.title.length) {
         const kw = document.createElement("div");
-        kw.textContent = `শিরোনাম: ${item.keywords.map(k => `#${k}`).join(" · ")}`;
+        kw.textContent = `শিরোনাম: ${item.title.map(k => `#${k}`).join(" · ")}`;
         meta.appendChild(kw);
       }
 
@@ -979,5 +979,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   init();
 });
+
 
 
