@@ -318,9 +318,9 @@ document.addEventListener("DOMContentLoaded", () => {
       meta.appendChild(tagsList);
 
       if (item.title && item.title.length) {
-        const kw = document.createElement("div");
-        kw.textContent = `শিরোনাম: ${item.title.map(k => `#${k}`).join(" · ")}`;
-        meta.appendChild(kw);
+        const tl = document.createElement("div");
+        tl.textContent = `শিরোনাম: ${item.title.map(t => `#${t}`).join(" · ")}`;
+        meta.appendChild(tl);
       }
 
       const info = document.createElement("div");
@@ -979,6 +979,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   init();
 });
+
 
 
 
