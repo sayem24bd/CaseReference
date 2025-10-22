@@ -319,7 +319,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       if (item.keywords && item.keywords.length) {
         const kw = document.createElement("div");
-        kw.textContent = `নোট: ${item.keywords.map(k => `#${k}`).join(" · ")}`;
+        kw.textContent = `শিরোনাম: ${item.keywords.map(k => `#${k}`).join(" · ")}`;
         meta.appendChild(kw);
       }
 
@@ -350,7 +350,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (item.related_ids && item.related_ids.length) {
         const relatedDiv = document.createElement("div");
         const relatedBold = document.createElement("b");
-        relatedBold.textContent = "সংশ্লিষ্ট: ";
+        relatedBold.textContent = "Relevant: ";
         relatedDiv.appendChild(relatedBold);
         item.related_ids.forEach((relId, index) => {
           const relatedLink = document.createElement("a");
