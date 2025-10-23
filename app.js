@@ -178,7 +178,7 @@ document.addEventListener("DOMContentLoaded", () => {
         law_section: String(item.law_section || "").trim(),
         case_reference: String(item.case_reference || "").trim(),
         tags: Array.isArray(item.tags) ? item.tags.map(t => String(t).trim()).filter(Boolean) : [],
-        keywords: Array.isArray(item.keywords) ? item.keywords.map(t => String(t).trim()).filter(Boolean) : [],
+        title: Array.isArray(item.title) ? item.title.map(t => String(t).trim()).filter(Boolean) : [],
         year: Number.isFinite(Number(item.year)) ? Number(item.year) : null,
         last_updated: String(item.last_updated || "").trim(),
         source: String(item.source || "").trim(),
@@ -205,7 +205,7 @@ document.addEventListener("DOMContentLoaded", () => {
         (item.law_section && item.law_section.toLowerCase().includes(k)) ||
         (item.case_reference && item.case_reference.toLowerCase().includes(k)) ||
         (item.tags && item.tags.join(" ").toLowerCase().includes(k)) ||
-        (item.keywords && item.keywords.join(" ").toLowerCase().includes(k))
+        (item.title && item.title.join(" ").toLowerCase().includes(k))  
       );
     });
   };
@@ -317,10 +317,10 @@ document.addEventListener("DOMContentLoaded", () => {
       tagsList.textContent = item.tags.map(t => `#${t}`).join(" · ") || "N/A";
       meta.appendChild(tagsList);
 
-      if (item.title && item.title.length) {
-        const tl = document.createElement("div");
-        tl.textContent = `শিরোনাম: ${item.title.map(t => `#${t}`).join(" · ")}`;
-        meta.appendChild(tl);
+     if (item.title && item.title.length) { 
+        const kw = document.createElement("div");
+        kw.textContent = ` ${item.title.map(k => `${k}`).join(" · ")}`;
+        meta.appendChild(kw);
       }
 
       const info = document.createElement("div");
@@ -777,7 +777,7 @@ document.addEventListener("DOMContentLoaded", () => {
             { name: 'question', weight: 0.5 },
             { name: 'answer', weight: 0.3 },
             { name: 'tags', weight: 0.1 },
-            { name: 'keywords', weight: 0.1 }
+           { name: 'title', weight: 0.1 }
           ],
           includeScore: false,
           threshold: 0.3,
@@ -796,7 +796,7 @@ document.addEventListener("DOMContentLoaded", () => {
             { name: 'question', weight: 0.5 },
             { name: 'answer', weight: 0.3 },
             { name: 'tags', weight: 0.1 },
-            { name: 'keywords', weight: 0.1 }
+            { name: 'title', weight: 0.1 }
           ],
           includeScore: false,
           threshold: 0.3,
@@ -979,6 +979,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   init();
 });
+
 
 
 
