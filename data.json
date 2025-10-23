@@ -25,8 +25,8 @@
     "key_point": "বাধ্যতামূলক দলিল রেজিস্ট্রি না হলে আদালতে অগ্রহণযোগ্য হওয়ার ঝুঁকি আছে।",
     "law_section": "রেজিস্ট্রেশন আইন, ১৯০৮, ধারা ১৭",
     "case_reference": "Rahima Khatun vs Monir (2015)",
-    "tags": ["দলিল" ],
-    "title":[  "দলিল" ],
+    "tags": ["দলিল"],
+    "title": ["দলিল"],
     "year": 2015,
     "last_updated": "2024-07-20",
     "source": "রেজিস্ট্রেশন আইন, ১৯০৮",
@@ -63,7 +63,7 @@
     "law_section": "প্রমান আইন, ১৮৭২, ধারা ৬১",
     "case_reference": "Babul vs Jalal (2018)",
     "tags": [ "দলিল" ],
-    "title": [ "দলিল" ],
+    "title": ["দলিল" ],
     "year": 2018,
     "last_updated": "2024-07-19",
     "source": "প্রমাণ আইন, ১৮৭২",
@@ -132,7 +132,7 @@
   "key_point": "রেকর্ড-অফ-রাইটস চূড়ান্তভাবে প্রকাশিত হলে তা প্রমাণস্বরূপ গণ্য হয় এবং পরবর্তীতে রাজস্ব কর্তৃপক্ষের পুনঃশুনানি আইনবিরুদ্ধ।",
   "law_section": "সেকশন ১৪৪, State Acquisition and Tenancy Act; রুল ৩৩ ও ৩৫(২)",
   "case_reference": "Secretary, Bangladesh Textile Mills Corporation vs Nasrin Sultana (Civil) 76 DLR (AD) 265",
-  "tags": ["Land Law", "Record of Rights", "Revenue Authority", "Final Publication"],
+  "tags": [ "Record of Rights"],
   "title": ["Finality of Record-of-Rights and Illegality of Repeated Appeals"],
   "year": 2024,
   "last_updated": "2025-10-17",
@@ -704,6 +704,7 @@
 
 
 ]
+
 
 
 
