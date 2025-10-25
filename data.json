@@ -133,7 +133,7 @@
   "last_updated": "2025-10-17",
   "source": "বাংলাদেশ আইন রিপোর্ট (DLR) 76 DLR (AD) 265",
   "law_reference_link": "",
-  "related_ids": ["SEC89_96_3B_2025", "SEC96_2025B"]
+  "related_ids": [""]
 },
   {
     "id": 9,
@@ -939,7 +939,7 @@
   "key_point": "আপিলের অধিকার কার্যক্রম শুরু হওয়ার সময় থেকেই স্থায়ী হয়, তবে আইন দ্বারা স্পষ্টভাবে বাতিল না হলে তা অক্ষুণ্ণ থাকে।",
   "law_section": "সেকশন ১৩৮এ, Negotiable Instruments Act, 1881 (Act XXVI of 1881)",
   "case_reference": "General Principle of Appeal Right (as per NI Act interpretation)",
-  "tags": ["NI Act", "Right of Appeal"],
+  "tags": ["NI Act"],
   "title": ["Substantive Nature of Right of Appeal under Section 138A"],
   "year": 2018,
   "last_updated": "2025-10-25",
@@ -948,6 +948,7 @@
 
 
 ]
+
 
 
 
