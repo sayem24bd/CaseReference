@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CaseReference</title>
+
+  <!-- CSP will be set by server; nonce token inserted server-side -->
+  <!-- Keep SRI for CDN libs -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0d6efd">
+ <link rel="stylesheet" href="/style.css">
+
+  <script 
+    src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.min.js"
+    integrity="sha256-xXM5w/oWsdadmmtGdJqBOe+NT8m7/kgUT/iXqn1CIuw="
+    crossorigin="anonymous"></script>
+
+  <script 
+    src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"
+    integrity="sha384-cwS6YdhLI7XS60eoDiC+egV0qHp8zI+Cms46R0nbn8JrmoAzV9uFL60etMZhAnSu"
+    crossorigin="anonymous"></script>
+	
+	<script 
+    src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"
+    integrity="sha384-cwS6YdhLI7XS60eoDiC+egV0qHp8zI+Cms46R0nbn8JrmoAzV9uFL60etMZhAnSu"
+    crossorigin="anonymous"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+</head>
+<body>
+<header role="banner" aria-label="অ্যাপ হেডার">
+  <h1>📚 Case Reference</h1>
+  <div class="spacer"></div>
+  <div class="button-group" role="group" aria-label="হেডার বাটন">
+    <button id="filterToggleBtn" class="btn-filter" title="ফিল্টার খুলুন" aria-label="ফিল্টার মেনু খুলুন" type="button">
+      <span>ফিল্টার</span>
+    </button>
+    <button id="clearFilters" class="ghost" title="ফিল্টার রিসেট করুন" aria-label="সব ফিল্টার রিসেট করুন" type="button">রিসেট</button>
+  </div>
+  <button id="themeToggle" class="ghost" aria-label="থিম টগল" type="button"></button>
+  <button id="installBtn" class="btn" hidden type="button">⬇️ Install</button>
+</header>
+
+<main class="container" role="main">
+  <!-- (same as before) -->
+  <section id="controlsContainer" class="controls" aria-label="সার্চ ও ফিল্টার">
+    <div id="searchWrap" class="js-movable flex-2">
+      <label for="searchBox">সার্চ</label>
+      <input id="searchBox" type="text" placeholder="প্রশ্ন, ধারা, বা কীওয়ার্ড লিখুন..." aria-label="সার্চ ইনপুট" />
+    </div>
+    <div id="sortWrap" class="js-movable">
+      <label for="sort">সাজান</label>
+      <select id="sort" aria-label="সোর্ট নির্বাচন">
+        <option value="relevance">Relevance</option>
+        <option value="newest">সর্বশেষ সাল</option>
+        <option value="az">প্রশ্ন A–Z</option>
+        <option value="section">ধারা অনুযায়ী</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="layout" aria-label="ফিল্টার সাইডবার ও রেজাল্ট">
+    <aside class="sidebar" aria-label="অ্যাডভান্সড ফিল্টার">
+      <div id="mobileControlsContainer"></div>
+      <div class="controls-row">
+        <div class="flex-1">
+          <label for="section">ধারা</label>
+          <select id="section"></select>
+        </div>
+        <div class="flex-1">
+          <label for="year">সাল</label>
+          <select id="year"></select>
+        </div>
+      </div>
+      <fieldset class="mt-12">
+        <legend>ট্যাগ</legend>
+        <div id="tagsWrap" class="tags" role="group" aria-label="ট্যাগ ফিল্টার"></div>
+      </fieldset>
+      <div class="bookmark-filter">
+        <label>
+          <input type="checkbox" id="showBookmarksOnly">
+          <span>শুধু বুকমার্ক করা ফলাফল দেখান</span>
+        </label>
+      </div>
+    </aside>
+
+    <section>
+      <div id="count" class="count" aria-live="polite"></div>
+      <div id="results" class="cards" aria-label="সার্চ ফলাফল"></div>
+      <div id="pagination-container" class="pagination-container"></div>
+
+      <h3 class="mt-18">📌 বুকমার্কড</h3>
+      <div id="bookmarks" class="cards" aria-label="বুকমার্ক তালিকা"></div>
+    </section>
+  </section>
+</main>
+
+<footer>
+  © CaseReference — অফলাইন সাপোর্টেড PWA
+  <br>
+  👥 ভিজিটর সংখ্যা: <span id="visitor-count">লোড হচ্ছে...</span>
+</footer>
+
+<!-- Inline firebase init script: nonce will be injected server-side -->
+<script nonce="%NONCE%">
+  // Firebase client config: kept minimal. Ensure DB rules locked in console.
+  const firebaseConfig = {
+    apiKey: "AIzaSyCfMxJP5o9mk2R6OAKjOYzaYo8Tg8kKmJU",
+    authDomain: "casereference-f0b39.firebaseapp.com",
+    databaseURL: "https://casereference-f0b39-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "casereference-f0b39",
+    storageBucket: "casereference-f0b39.appspot.com",
+    messagingSenderId: "882292039747",
+    appId: "1:882292039747:web:281b33ac6665ac1b4274f6"
+  };
+  try { firebase.initializeApp(firebaseConfig); console.log("Firebase initialized"); } catch(e){ console.warn("Firebase init:", e); }
+</script>
+
+<!-- App scripts (app.js) loaded with nonce -->
+<script src="/static/app.js" nonce="%NONCE%"></script>
+</body>
+</html>
