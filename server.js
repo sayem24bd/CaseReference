@@ -7,8 +7,7 @@ const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
 
 const app = express();
-const PORT = 3000;
-
+const PORT = process.env.PORT || 3000;
 // Simple in-memory visitor count (demo only)
 let visitorCount = 0;
 
@@ -75,3 +74,4 @@ app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
+
