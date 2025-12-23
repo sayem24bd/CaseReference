@@ -5,9 +5,14 @@ const path = require("path");
 const crypto = require("crypto");
 const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
+const cors = require("cors"); // ১. CORS ইমপোর্ট করা হয়েছে
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000; // ২. Render-এর পোর্টের জন্য পরিবর্তন
+
+// ৩. CORS এনাবল করা (যাতে GitHub থেকে রিকোয়েস্ট আসতে পারে)
+app.use(cors()); 
+
 // Simple in-memory visitor count (demo only)
 let visitorCount = 0;
 
@@ -15,7 +20,7 @@ let visitorCount = 0;
 const INDEX_FILE = path.join(__dirname, "public", "index.html");
 
 // Middleware
-app.use(helmet({ contentSecurityPolicy: false })); // We'll set CSP manually
+app.use(helmet({ contentSecurityPolicy: false })); 
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -23,7 +28,6 @@ app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (req, res) => {
   try {
     let html = fs.readFileSync(INDEX_FILE, "utf8");
-
     const nonce = crypto.randomBytes(16).toString("base64");
 
     const csp = [
@@ -57,22 +61,19 @@ app.get("/api/visitor", (req, res) => {
   try {
     const lastVisit = req.cookies.__last_visit_ts;
     const now = Date.now();
-    if (!lastVisit || (now - Number(lastVisit)) > 60000) { // 1 min throttle
+    
+    // ১ মিনিটের মধ্যে পুনরায় আসলে কাউন্ট বাড়বে না
+    if (!lastVisit || (now - Number(lastVisit)) > 60000) { 
       visitorCount++;
-      res.cookie("__last_visit_ts", String(now), { httpOnly: true, sameSite: "Lax" });
+      res.cookie("__last_visit_ts", String(now), { httpOnly: true, sameSite: 'strict' });
     }
-    res.json({ value: visitorCount });
-  } catch {
-    res.status(500).json({ value: 0 });
+    
+    res.json({ count: visitorCount });
+  } catch (err) {
+    res.status(500).json({ error: "Visitor counter error" });
   }
 });
 
-// Health check
-app.get("/health", (req, res) => res.json({ status: "ok" }));
-
-// Start server
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
-
-
