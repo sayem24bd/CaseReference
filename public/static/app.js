@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const MAX_KEYWORD_LENGTH = 200;
   const FUSE_CDN = "https://cdn.jsdelivr.net/npm/fuse.js@6.6.2/dist/fuse.esm.min.js";
-  const VISITOR_PROXY = "/api/visitor";
+  const VISITOR_PROXY = "https://casereference.onrender.com";
   
   // ----------------------------
   // Security Sanity Check
@@ -1008,4 +1008,5 @@ const fetchDataJson = async () => {
 
   init();
 });
+
 
