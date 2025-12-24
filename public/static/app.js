@@ -872,29 +872,23 @@ const fetchDataJson = async () => {
   // ----------------------------
   // Visitor counter (proxy-first, fallback optional)
   // ----------------------------
- (function visitorCounter() {
-    const counterEl = document.getElementById("visitor-count");
-    if (!counterEl) return;
-    counterEl.textContent = "⏳ লোড হচ্ছে...";
-    const attempt = async () => {
-      try {
-        const res = await fetch(VISITOR_PROXY, { cache: "no-cache" });
-        if (!res.ok) throw new Error("Network response was not ok");
-        const data = await res.json();
-        // validate strictly
-        if (data && (Number.isFinite(Number(data.value)) || (/^\d+$/.test(String(data.value))))) {
-          counterEl.textContent = ` ${Number(data.value).toLocaleString("en-US")}`;
+async function updateVisitorCount() {
+    try {
+        const response = await fetch(VISITOR_PROXY);
+        if (!response.ok) throw new Error("Server error");
+        
+        const data = await response.json();
+        
+        // এখানে চেক করা হচ্ছে 'count' আছে কি না
+        if (data && typeof data.count !== 'undefined') {
+            document.getElementById("visitor-count").innerText = data.count;
         } else {
-          throw new Error("Invalid visitor counter response");
+            throw new Error("Invalid visitor counter response");
         }
-      } catch (err) {
-        console.error("Visitor counter failed:", err);
-        counterEl.textContent = "👥 ভিজিটর সংখ্যা: লোড ব্যর্থ ❌";
-      }
-    };
-    attempt();
-  })();
-
+    } catch (error) {
+        console.error("Counter failed:", error);
+    }
+}
 
   // ----------------------------
   // Initialization
@@ -1008,6 +1002,7 @@ const fetchDataJson = async () => {
 
   init();
 });
+
 
 
 
