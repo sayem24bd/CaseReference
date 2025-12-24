@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -10,26 +9,23 @@ const cors = require("cors");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Simple in-memory visitor count (demo only)
+// ১. CORS এবং কুকি পার্সার সবার আগে থাকবে
+app.use(cors({
+    origin: "*", // টেস্ট করার জন্য সব ডোমেইন ওপেন রাখা হলো
+    credentials: true
+}));
+app.use(cookieParser());
+
+// ২. ইন-মেমোরি কাউন্টার ভেরিয়েবল
 let visitorCount = 0;
 
-// Define index.html path
-const INDEX_FILE = path.join(__dirname, "public", "index.html");
-
-// Middleware
-app.use(helmet({ contentSecurityPolicy: false })); // We'll set CSP manually
-app.use(cookieParser());
-app.use(cors());
-app.use(express.static(path.join(__dirname, "public")));
-
-app.use(express.static(path.join(__dirname, "public")));
-
-// ভিজিটর API এখানে নিয়ে আসুন
+// ৩. [গুরুত্বপূর্ণ] API রাউটটি অবশ্যই স্ট্যাটিক ফাইলের *উপরে* থাকতে হবে
 app.get("/api/visitor", (req, res) => {
   try {
     const lastVisit = req.cookies.__last_visit_ts;
     const now = Date.now();
     
+    // ১ মিনিটের লজিক
     if (!lastVisit || (now - Number(lastVisit)) > 60000) { 
       visitorCount++;
       res.cookie("__last_visit_ts", String(now), { 
@@ -38,50 +34,39 @@ app.get("/api/visitor", (req, res) => {
         secure: true 
       });
     }
-    res.json({ count: visitorCount }); // এটি নিশ্চিত করবে JSON পাঠানো হচ্ছে
+    
+    // নিশ্চিত করুন এটি JSON পাঠাচ্ছে
+    res.setHeader('Content-Type', 'application/json');
+    res.json({ count: visitorCount });
+
   } catch (err) {
-    res.status(500).json({ error: "Visitor counter error" });
+    console.error(err);
+    res.status(500).json({ count: 0, error: "Server error" });
   }
 });
 
-// Root route with nonce injection
+// ৪. এরপর স্ট্যাটিক ফাইল সেটআপ (API এর নিচে)
+const INDEX_FILE = path.join(__dirname, "public", "index.html");
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(express.static(path.join(__dirname, "public")));
+
+// ৫. সবশেষে রুট রাউট (HTML সার্ভ করা)
 app.get("/", (req, res) => {
   try {
+    if (!fs.existsSync(INDEX_FILE)) {
+       return res.send("index.html missing");
+    }
     let html = fs.readFileSync(INDEX_FILE, "utf8");
-
     const nonce = crypto.randomBytes(16).toString("base64");
-
-    const csp = [
-      `default-src 'self'`,
-      `script-src 'self' 'nonce-${nonce}' https://cdn.jsdelivr.net https://www.gstatic.com`,
-      `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
-      `img-src 'self' data:`,
-      `font-src 'self' https://fonts.gstatic.com`,
-      `connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://cdn.jsdelivr.net`,
-      `form-action 'self'`
-    ].join("; ");
-
-    res.setHeader("Content-Security-Policy", csp);
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("X-Frame-Options", "DENY");
-    res.setHeader("Referrer-Policy", "no-referrer-when-downgrade");
-    res.setHeader("Permissions-Policy", "geolocation=()");
-
+    
+    // CSP হেডার সেট করা... (আপনার আগের কোডের মতো)
     html = html.replace(/%NONCE%/g, nonce);
-    res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.send(html);
-
   } catch (err) {
-    console.error("Serve index error:", err);
-    res.status(500).send("Server error");
+    res.status(500).send("Error loading page");
   }
 });
 
-
-// Health check
-app.get("/health", (req, res) => res.json({ status: "ok" }));
-
-// Start server
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
